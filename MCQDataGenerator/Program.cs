@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json.Serialization;
 
 internal class Program
 {
@@ -37,7 +39,9 @@ internal class Program
             for (int i = 0; i < noOfCols; i++)
             {
                 var curColVal = cols[i];
-                recordsWithOptions[i].Add(curColVal);
+
+                if (!string.IsNullOrWhiteSpace(curColVal.Trim('"')))
+                    recordsWithOptions[i].Add(curColVal);
             }
             noOfRecords++;
         }
@@ -81,16 +85,23 @@ internal class Program
         StringBuilder newFileContents = new StringBuilder(tr.ReadToEnd());
         tr.Close();
 
+        var jsonContent = new List<List<string>>();
+
         for (int i = 0; i < noOfResponsesToGenerate; i++)
         {
             List<string> newRecordAnswers = new List<string>();
+            List<string> jsonAnswerRecords = new List<string>();
+
             foreach (var colOptionWithProb in colOptionsWithProbabilities)
             {
                 var wce = new WeightedChanceExecutor(colOptionWithProb.ToArray());
                 var selectedOption = wce.Execute();
 
                 newRecordAnswers.Add(selectedOption);
+                jsonAnswerRecords.Add(selectedOption.Trim('"').Replace(" ", "+"));
             }
+
+            jsonContent.Add(jsonAnswerRecords.Skip(1).ToList());
 
             string newRow = string.Join(",", newRecordAnswers);
 
@@ -101,8 +112,14 @@ internal class Program
         // write to new file
         string curFilePath = Path.GetDirectoryName(csvFilePath);
         string curFileName = Path.GetFileNameWithoutExtension(csvFilePath);
-        string newFileName = curFileName + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss") + ".csv";
+        string newFileNameWithoutExt = curFileName + DateTime.Now.ToString("yyyy-MM-dd-HH-mm-ss");
+        string newFileName = newFileNameWithoutExt + ".csv";
         string newFilePath = Path.Combine(curFilePath, newFileName);
+
+        string newJsonFileName = newFileNameWithoutExt + ".json";
+        string newJsonFilePath = Path.Combine(curFilePath, newJsonFileName);
+        string jsonContentString = Newtonsoft.Json.JsonConvert.SerializeObject(jsonContent);
+        File.WriteAllText(newJsonFilePath, jsonContentString);
 
         File.WriteAllText(newFilePath, newFileContents.ToString());
 
